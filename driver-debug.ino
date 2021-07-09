@@ -1,4 +1,8 @@
-// #include <util/twi.h>
+
+
+// === July 2021 Debugging Flags ===
+#define DEBUG_SKIP_PWM_CHECK
+// === End Debug Flags =============
 
 #define INVERT_ROW_PINS
 // INVERT_ROW_PINS is needed for G4 driver v1
@@ -93,6 +97,11 @@ void loop()
 
     // 1) Read incoming spi message
     // ------------------------------------------------------------------------
+#ifdef DEBUG_SKIP_PWM_CHECK
+    msgSize = PWM_TYPE_16_MSG_SIZE; // DEBUG: OM 2021-06-09
+    pwmType = PWM_TYPE_16;
+#endif
+
     // while (digitalRead(SS) == 1); // Wait for chip-select enable
     while (PINB & _BV(2)); // Wait for chip-select enable (should be faster than above)
 
@@ -102,6 +111,8 @@ void loop()
         while (!(SPSR & _BV(SPIF))); // wait for transmission complete
         buffer[bufPos] = SPDR;       // Read byte from spi data register
         bufPos++;
+
+#ifndef DEBUG_SKIP_PWM_CHECK
         if (bufPos == 1)
         {
             pwmType = buffer[0] & PWM_TYPE_MASK;
@@ -114,6 +125,8 @@ void loop()
                 msgSize = PWM_TYPE_2_MSG_SIZE;
             }
         }
+#endif // DEBUG_SKIP_PWM_CHECK
+
         if (bufPos >= msgSize)
         {
             dataReady = true;
