@@ -2,6 +2,7 @@
 
 // === July 2021 Debugging Flags ===
 #define DEBUG_SKIP_PWM_CHECK
+#define DEBUG_SPI_LED_DELAY
 // === End Debug Flags =============
 
 #define INVERT_ROW_PINS
@@ -142,6 +143,11 @@ void loop()
         uint8_t dummy0 = SPSR & _BV(SPIF);
         uint8_t dummy1 = SPDR;
     }
+
+#ifdef DEBUG_SPI_LED_DELAY
+    // DEBUG: Add delay between SPI recieve and LED display (OM 2021-07-08)
+    delayMicroseconds(400);
+# endif // DEBUG_SPI_LED_DELAY
 
     // 2) Update display
     // ------------------------------------------------------------------------
