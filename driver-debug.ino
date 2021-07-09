@@ -202,6 +202,15 @@ void loop()
             }
             SET_COL_PINS(colValue);
 
+            // fixed delay at the end of each loop
+            if (delayValue > 0)
+            {
+                for (uint8_t delayCount=0; delayCount < delayValue; delayCount++)
+                {
+                    NOP;
+                }
+            }
+
             // Update pwm count and row count
             pwm++;
             if (pwm >= pwmMaxCount)
@@ -220,14 +229,6 @@ void loop()
                 }
             }
 
-            // fixed delay at the end of each loop  ##### OM: Shouldn't this be before updating row & pwm count?
-            if (delayValue > 0)
-            {
-                for (uint8_t delayCount=0; delayCount < delayValue; delayCount++)
-                {
-                    NOP;
-                }
-            }
 
         } // while (row<8)
     }
