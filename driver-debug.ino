@@ -1,4 +1,4 @@
-#include <util/twi.h>
+// #include <util/twi.h>
 
 #define INVERT_ROW_PINS
 // INVERT_ROW_PINS is needed for G4 driver v1
@@ -55,8 +55,17 @@ void setup()
     // Setup SPI communications
     pinMode(MISO,OUTPUT);
     pinMode(SS, INPUT);
-    SPCR |= _BV(SPE);
+    //SPCR |= _BV(SPE);
+    SPCR = _BV(SPE);    // Based on Atmel datasheet; OM 2021-06-09
 
+    // Setup pin modes for row & col pins
+    resetRowColPins();
+
+    // Turn off interrupts
+    noInterrupts();
+}
+
+void resetRowColPins() {
     // Set data direction for row pins
     DDRB |= _BV(0) | _BV(1);
     DDRC |= _BV(0) | _BV(1) | _BV(2) | _BV(3)| _BV(4)| _BV(5);
@@ -69,12 +78,9 @@ void setup()
     DDRD = 0xff;
 #endif
 
-    // Set initial state for column and row pins
+    // Turn "off" all column and row pins
     SET_COL_PINS(0x00);
     SET_ROW_PINS(0xff);
-
-    // Turn off interrupts
-    noInterrupts();
 }
 
 void loop()
@@ -87,13 +93,14 @@ void loop()
 
     // 1) Read incoming spi message
     // ------------------------------------------------------------------------
-    while (digitalRead(SS) == 1); // Slow replace with direct port read
+    // while (digitalRead(SS) == 1); // Wait for chip-select enable
+    while (PINB & _BV(2)); // Wait for chip-select enable (should be faster than above)
 
-    while (!(SPSR & _BV(SPIF)));
     while (true)
     {
-        // Read byte from spi data register
-        buffer[bufPos] = SPDR;
+        // SPI transfer
+        while (!(SPSR & _BV(SPIF))); // wait for transmission complete
+        buffer[bufPos] = SPDR;       // Read byte from spi data register
         bufPos++;
         if (bufPos == 1)
         {
@@ -112,9 +119,9 @@ void loop()
             dataReady = true;
             break;
         }
-        while (!(SPSR & _BV(SPIF)));
     }
-    while (digitalRead(SS) == 0); // Slow replace with direct port read
+    //while (digitalRead(SS) == 0); // Wait for chip-select to be disabled
+    while (!(PINB & _BV(2))); // Wait for chip-select disable (should be faster than above)
 
     // Read SPSR and SPDR a couple times - to clear out any possible mismatch
     for (uint8_t i=0; i<5; i++)
@@ -147,8 +154,8 @@ void loop()
         }
         delayValue = (*bufferPtr & DELAY_MASK);
 
-        // Turn first row on (?)
-        SET_ROW_PINS(~_BV(0)); // ~_BV(0) => 0b11111110 (???)
+        // Activate first row
+        SET_ROW_PINS(~_BV(0)); // ~_BV(0) => 0b11111110
 
         while (row < 8)
         {
@@ -200,16 +207,16 @@ void loop()
             if (pwm >= pwmMaxCount)
             {
                 // finished all pwm values: reset pwm and increment row
+                SET_COL_PINS(0x00); // turn off all columns
                 pwm = 0;
                 row++;
-                SET_COL_PINS(0x00); // turn off all columns
                 if (row < 8)
                 {
-                    SET_ROW_PINS(~_BV(row%8)); // turn on next row
+                    SET_ROW_PINS(~_BV(row%8)); // activate next row
                 }
                 else
                 {
-                    SET_ROW_PINS(0xff); // turn off all rows
+                    SET_ROW_PINS(0xff); // deactivate all rows
                 }
             }
 
