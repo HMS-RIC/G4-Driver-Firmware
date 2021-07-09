@@ -53,11 +53,19 @@ const uint8_t DELAY_SHIFT = 1;
 const uint8_t PWM_TYPE_2_MSG_SIZE = 9;
 const uint8_t PWM_TYPE_16_MSG_SIZE = 33;
 
+// DEBUG Globals
+uint8_t Reset_Source = 0; // OM 2021-07-08
+uint8_t Loop_Counter = 0;
+
 
 // Functions
 // ----------------------------------------------------------------------------
 void setup()
 {
+    // DEBUG: Query "Reset Source" Flags
+    Reset_Source = MCUSR; // OM 2021-07-08
+    MCUSR = 0x00; // OM 2021-07-08
+
     // Setup SPI communications
     pinMode(MISO,OUTPUT);
     pinMode(SS, INPUT);
@@ -91,6 +99,7 @@ void resetRowColPins() {
 
 void loop()
 {
+    Loop_Counter++; // DEBUG; OM 2021-07-08
     static uint8_t buffer[BUF_SIZE];
     bool dataReady = false;
     uint8_t bufPos = 0;
@@ -99,6 +108,9 @@ void loop()
 
     // 1) Read incoming spi message
     // ------------------------------------------------------------------------
+    // DEBUG: Here is where we can specify the first byte to send back on MISO:
+    // SPDR = bufPos; // transmit bufPos; DEBUG: OM 2021-06-09
+    // SPDR = Reset_Source; // DEBUG: OM 2021-07-08
 #ifdef DEBUG_SKIP_PWM_CHECK
     msgSize = PWM_TYPE_16_MSG_SIZE; // DEBUG: OM 2021-06-09
     pwmType = PWM_TYPE_16;
@@ -112,7 +124,13 @@ void loop()
         // SPI transfer
         while (!(SPSR & _BV(SPIF))); // wait for transmission complete
         buffer[bufPos] = SPDR;       // Read byte from spi data register
+        // DEBUG: Here is where we can specify the byte to send back on MISO:
+        // SPDR = buffer[bufPos]; // send back what we recieved; DEBUG: OM 2021-06-09
+        SPDR = 0x00;           // send back 0 — easy to see if this stops; DEBUG: OM 2021-07-02
+        // SPDR = Reset_Source;    // output the cause of the most recent reset
+        // SPDR = Loop_Counter;    // output loop number (to detect reboots)
         bufPos++;
+        // SPDR = bufPos; // transmit bufPos; DEBUG: OM 2021-06-09
 
 #ifndef DEBUG_SKIP_PWM_CHECK
         if (bufPos == 1)
@@ -135,6 +153,7 @@ void loop()
             break;
         }
     }
+    SPDR = 0x00; // DEBUG OM 2021-06-10
     //while (digitalRead(SS) == 0); // Wait for chip-select to be disabled
     while (!(PINB & _BV(2))); // Wait for chip-select disable (should be faster than above)
 
@@ -144,6 +163,7 @@ void loop()
         uint8_t dummy0 = SPSR & _BV(SPIF);
         uint8_t dummy1 = SPDR;
     }
+    SPDR = 0x00; // DEBUG OM 2021-06-10
 
 #ifdef DEBUG_SPI_LED_DELAY
     // DEBUG: Add delay between SPI recieve and LED display (OM 2021-07-08)
@@ -233,6 +253,11 @@ void loop()
 
             // Update pwm count and row count
             pwm++;
+
+            // DEBUG: Flicker row on-off; OM 2021-07-02; THIS CRASHES THE DRIVER
+            // SET_ROW_PINS(0xFF); // turn row off
+            // SET_ROW_PINS(~_BV(row%8)); // activate current row
+
             if (pwm >= pwmMaxCount)
             {
                 // finished all pwm values: reset pwm and increment row
