@@ -1,6 +1,7 @@
 #include <util/twi.h>
 
 #define INVERT_ROW_PINS
+// INVERT_ROW_PINS is needed for G4 driver v1
 
 #ifdef SERIAL_DEBUG
 #include <Streaming.h>
@@ -10,6 +11,7 @@
 // ----------------------------------------------------------------------------
 #define NOP __asm__ __volatile__ ("nop\n\t")
 
+// Column pins are port D
 #ifdef SERIAL_DEBUG
 #define SET_COL_PINS(value) ({                           \
     PORTD = (PORTD & 0b00000011) + (value & 0b11111100); \
@@ -18,25 +20,22 @@
 #define SET_COL_PINS(value) ((PORTD=value))
 #endif
 
-#ifdef INVERT_ROW_PINS
 
+// Row pins are on ports C and B
+#ifdef INVERT_ROW_PINS
 #define SET_ROW_PINS(value) ({                              \
     PORTB = (PORTB & 0b11111100) + ((~value) >> 6);         \
     PORTC = (PORTC & 0b11000000) + ((~value) & 0b00111111); \
 })
-
-
 #else
-
 #define SET_ROW_PINS(value) ({                           \
     PORTB = (PORTB & 0b11111100) + (value  >> 6);        \
     PORTC = (PORTC & 0b11000000) + (value & 0b00111111); \
 })
-
 #endif
 
 
-// Constants 
+// Constants
 // ----------------------------------------------------------------------------
 const uint8_t BUF_SIZE = 0xff;
 const uint16_t TWI_MAX_COUNT = 0xffff;
@@ -64,14 +63,14 @@ void setup()
 
     // Set data direction for col pins
 #ifdef SERIAL_DEBUG
-    DDRD = 0xfc; 
+    DDRD = 0xfc;
     Serial.begin(115200);
 #else
-    DDRD = 0xff; 
+    DDRD = 0xff;
 #endif
 
     // Set initial state for column and row pins
-    SET_COL_PINS(0x00); 
+    SET_COL_PINS(0x00);
     SET_ROW_PINS(0xff);
 
     // Turn off interrupts
@@ -86,7 +85,7 @@ void loop()
     uint8_t msgSize;
     uint8_t pwmType;
 
-    // Read incoming spi message
+    // 1) Read incoming spi message
     // ------------------------------------------------------------------------
     while (digitalRead(SS) == 1); // Slow replace with direct port read
 
@@ -98,7 +97,7 @@ void loop()
         bufPos++;
         if (bufPos == 1)
         {
-            pwmType = buffer[0] & PWM_TYPE_MASK; 
+            pwmType = buffer[0] & PWM_TYPE_MASK;
             if (pwmType == PWM_TYPE_16)
             {
                 msgSize = PWM_TYPE_16_MSG_SIZE;
@@ -117,14 +116,14 @@ void loop()
     }
     while (digitalRead(SS) == 0); // Slow replace with direct port read
 
-    // Read SPSR and SPDR a couple times - to clear out any possible mismatch 
+    // Read SPSR and SPDR a couple times - to clear out any possible mismatch
     for (uint8_t i=0; i<5; i++)
     {
         uint8_t dummy0 = SPSR & _BV(SPIF);
         uint8_t dummy1 = SPDR;
     }
 
-    // Update display 
+    // 2) Update display
     // ------------------------------------------------------------------------
     if (dataReady)
     {
@@ -148,33 +147,37 @@ void loop()
         }
         delayValue = (*bufferPtr & DELAY_MASK);
 
-        SET_ROW_PINS(~_BV(0));
+        // Turn first row on (?)
+        SET_ROW_PINS(~_BV(0)); // ~_BV(0) => 0b11111110 (???)
 
         while (row < 8)
         {
             // Get column values based on matrix
-            colValue = 0x00;
+            colValue = 0x00; // initialize colVal to all 0s
 
+            // check if each column value is > pwmThreshold
+            //  (pwmThreshold will increase from 0 to 15 in successive
+            //  loop iterations in 16-level mode)
             if (pwmMaxCount == 16)
             {
                 // 16 -level grayscale (~1.3kHz)
-                pwmShift4 = pwm << 4; 
+                pwmShift4 = pwm << 4;
 
                 bufferPtr = buffer + 4*row + 1;
-                if ((*bufferPtr & 0x0f) > pwm      ) { colValue |= _BV(0); } else { dummy |= _BV(0); }
-                if ((*bufferPtr & 0xf0) > pwmShift4) { colValue |= _BV(1); } else { dummy |= _BV(1); }
+                if ((*bufferPtr & 0x0f) > pwm      ) { colValue |= _BV(0); } else { dummy |= _BV(0); } // col 1
+                if ((*bufferPtr & 0xf0) > pwmShift4) { colValue |= _BV(1); } else { dummy |= _BV(1); } // col 2
 
                 bufferPtr++;
-                if ((*bufferPtr & 0x0f) > pwm      ) { colValue |= _BV(2); } else { dummy |= _BV(2); }
-                if ((*bufferPtr & 0xf0) > pwmShift4) { colValue |= _BV(3); } else { dummy |= _BV(3); }
+                if ((*bufferPtr & 0x0f) > pwm      ) { colValue |= _BV(2); } else { dummy |= _BV(2); } // col 3
+                if ((*bufferPtr & 0xf0) > pwmShift4) { colValue |= _BV(3); } else { dummy |= _BV(3); } // col 4
 
                 bufferPtr++;
-                if ((*bufferPtr & 0x0f) > pwm      ) { colValue |= _BV(4); } else { dummy |= _BV(4); }
-                if ((*bufferPtr & 0xf0) > pwmShift4) { colValue |= _BV(5); } else { dummy |= _BV(5); }
+                if ((*bufferPtr & 0x0f) > pwm      ) { colValue |= _BV(4); } else { dummy |= _BV(4); } // col 5
+                if ((*bufferPtr & 0xf0) > pwmShift4) { colValue |= _BV(5); } else { dummy |= _BV(5); } // col 6
 
                 bufferPtr++;
-                if ((*bufferPtr & 0x0f) > pwm      ) { colValue |= _BV(6); } else { dummy |= _BV(6); }
-                if ((*bufferPtr & 0xf0) > pwmShift4) { colValue |= _BV(7); } else { dummy |= _BV(7); }
+                if ((*bufferPtr & 0x0f) > pwm      ) { colValue |= _BV(6); } else { dummy |= _BV(6); } // col 7
+                if ((*bufferPtr & 0xf0) > pwmShift4) { colValue |= _BV(7); } else { dummy |= _BV(7); } // col 8
 
             }
             else
@@ -196,18 +199,21 @@ void loop()
             pwm++;
             if (pwm >= pwmMaxCount)
             {
+                // finished all pwm values: reset pwm and increment row
                 pwm = 0;
                 row++;
-                SET_COL_PINS(0x00);
+                SET_COL_PINS(0x00); // turn off all columns
                 if (row < 8)
                 {
-                    SET_ROW_PINS(~_BV(row%8));
+                    SET_ROW_PINS(~_BV(row%8)); // turn on next row
                 }
                 else
                 {
-                    SET_ROW_PINS(0xff);
+                    SET_ROW_PINS(0xff); // turn off all rows
                 }
             }
+
+            // fixed delay at the end of each loop  ##### OM: Shouldn't this be before updating row & pwm count?
             if (delayValue > 0)
             {
                 for (uint8_t delayCount=0; delayCount < delayValue; delayCount++)
@@ -219,5 +225,3 @@ void loop()
         } // while (row<8)
     }
 }
-
-
