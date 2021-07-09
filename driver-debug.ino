@@ -3,6 +3,7 @@
 // === July 2021 Debugging Flags ===
 #define DEBUG_SKIP_PWM_CHECK
 #define DEBUG_SPI_LED_DELAY
+#define DEBUG_ROW_OFF_ON_DELAY
 // === End Debug Flags =============
 
 #define INVERT_ROW_PINS
@@ -240,6 +241,14 @@ void loop()
                 row++;
                 if (row < 8)
                 {
+#ifdef DEBUG_ROW_OFF_ON_DELAY
+                    // DEBUG: Add delay between turning off current row
+                    // and turning on next row; OM 2021-07-08
+                    SET_ROW_PINS(0xff); // deactivate all rows
+                    // delayMicroseconds(1); // might be as long as 3us (?)
+                    NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP; // 10x
+                    NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP; // 10x
+#endif // DEBUG_ROW_OFF_ON_DELAY
                     SET_ROW_PINS(~_BV(row%8)); // activate next row
                 }
                 else
