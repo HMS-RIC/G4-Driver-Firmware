@@ -221,6 +221,9 @@ void loop()
                 row++;
                 if (row < 8)
                 {
+                    // First turn off current row; then turn on next row.
+                    // The temporal offset reduces power transients; OM 2021-07-08
+                    SET_ROW_PINS(0xff); // deactivate all rows
                     SET_ROW_PINS(~_BV(row%8)); // activate next row
                 }
                 else
