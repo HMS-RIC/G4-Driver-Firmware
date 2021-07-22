@@ -1,9 +1,11 @@
 
 
 // === July 2021 Debugging Flags ===
-#define DEBUG_SKIP_PWM_CHECK
-#define DEBUG_SPI_LED_DELAY
+// #define DEBUG_SKIP_PWM_CHECK
+// #define DEBUG_SPI_LED_DELAY
 #define DEBUG_ROW_OFF_ON_DELAY
+// #define DEBUG_ROW_OFF_ON_DELAY_CONTROL
+// #define DEBUG_SETUP_PINS_EARLY
 // === End Debug Flags =============
 
 #define INVERT_ROW_PINS
@@ -80,6 +82,14 @@ void setup()
 }
 
 void resetRowColPins() {
+
+#ifdef DEBUG_SETUP_PINS_EARLY
+    // Turn "off" all column and row pins
+    // Do this *before* setting pins to output mode
+    SET_COL_PINS(0x00);
+    SET_ROW_PINS(0xff);
+#endif
+
     // Set data direction for row pins
     DDRB |= _BV(0) | _BV(1);
     DDRC |= _BV(0) | _BV(1) | _BV(2) | _BV(3)| _BV(4)| _BV(5);
